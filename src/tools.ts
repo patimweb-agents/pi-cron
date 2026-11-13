@@ -11,7 +11,6 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { StringEnum } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { DELIVERY_TARGETS, applyPatch, buildJob } from "./core/jobs.ts";
 import type { JobPatch } from "./core/jobs.ts";
@@ -66,8 +65,13 @@ const toolsParam = Type.Optional(
   }),
 );
 
+// pi 1.5's StringEnum returns a pi-schema `Schema<T>`, which TypeBox cannot
+// carry into the static type, so the array came out as `unknown[]`. Unsafe
+// keeps the JSON Schema shape providers need ({type:"string", enum:[…]}) and
+// the literal union on the TypeScript side.
+const deliverItem = Type.Unsafe<DeliveryTarget>({ type: "string", enum: [...DELIVERY_TARGETS] });
 const deliverParam = Type.Optional(
-  Type.Array(StringEnum(DELIVERY_TARGETS as DeliveryTarget[]), {
+  Type.Array(deliverItem, {
     description: "Extra delivery besides the saved Markdown file: notify (desktop), telegram, webhook.",
   }),
 );
@@ -77,6 +81,8 @@ export interface ToolDeps {
   readonly runNow: (job: CronJob) => boolean;
   /** Whether this pi is scheduling (false in print mode or inside a run). */
   readonly schedulerActive: () => boolean;
+  /** Clock, injectable so tests do not drift with the wall clock. */
+  readonly now?: () => Date;
 }
 
 const defaultDeps: ToolDeps = {
@@ -89,6 +95,7 @@ const defaultDeps: ToolDeps = {
 };
 
 export function createCronTools(pi: Pi, deps: ToolDeps = defaultDeps) {
+  const clock = deps.now ?? (() => new Date());
   const cronCreate = {
     name: "cron_create",
     label: "Create Cron Job",
@@ -138,7 +145,7 @@ export function createCronTools(pi: Pi, deps: ToolDeps = defaultDeps) {
       ctx: { cwd: string },
     ) {
       checkTools(pi, params.tools);
-      const now = new Date();
+      const now = clock();
       const defaults = { deliver: loadConfig().defaultDeliver };
       const job = mutateJobs((jobs) => {
         const job = buildJob({ ...params, cwd: params.cwd ?? ctx.cwd }, jobs, now, defaults);
@@ -202,7 +209,7 @@ export function createCronTools(pi: Pi, deps: ToolDeps = defaultDeps) {
     async execute(_id: string, params: { job: string } & JobPatch) {
       const { job: ref, ...patch } = params;
       if (patch.tools) checkTools(pi, patch.tools);
-      const now = new Date();
+      const now = clock();
       const job = mutateJobs((jobs) => {
         const current = requireJob(jobs, ref);
         const updated = applyPatch(current, patch, jobs, now);

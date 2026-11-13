@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import extension from "../index.ts";
 import { loadJobs, saveJobs } from "../src/core/store.ts";
 import { createCronTools } from "../src/tools.ts";
-import { useTempHome } from "./helpers.ts";
+import { useTempHome, local } from "./helpers.ts";
 
 const fakePi = {
   getAllTools: () => ["read", "bash", "email_fetch", "email_send"].map((name) => ({ name })),
@@ -16,12 +16,15 @@ const fakePi = {
 
 let runs: string[] = [];
 let active = true;
+// Fixed clock: the window dates below stay in the future no matter when CI runs.
+const NOW = local(2026, 9, 21, 12, 0);
 const deps = {
   runNow: (job: { name: string }) => {
     runs.push(job.name);
     return true;
   },
   schedulerActive: () => active,
+  now: () => NOW,
 };
 const tools = createCronTools(fakePi, deps as never);
 const ctx = { cwd: tmpdir() };

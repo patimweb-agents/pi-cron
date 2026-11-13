@@ -32,6 +32,15 @@ const due = (overrides = {}) => makeJob(overrides, undefined, { nextRunAt: new D
 
 const stopLater: CronScheduler[] = [];
 
+/** Poll until `predicate` holds; fails loudly instead of asserting after the test ended. */
+async function until(predicate: () => boolean, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error("condition not met in time");
+    await new Promise((r) => setTimeout(r, 2));
+  }
+}
+
 function scheduler(onRunFinished?: (r: ExecuteResult) => void, pid = process.pid) {
   return new CronScheduler({ piCommand: [process.execPath, fakePi], onRunFinished, pid });
 }
@@ -65,10 +74,12 @@ describe("CronScheduler", () => {
       const mine = [...cron.getTasks().values()].filter((t) => t.name === `pi-cron-${process.pid}`);
       assert.equal(mine.length, 1);
       assert.equal(mine[0].getPattern(), "* * * * *");
-      // the first pass runs immediately, not at the next full minute
-      void new Promise((r) => setTimeout(r, 50)).then(() => assert.deepEqual(s.runningJobIds.length, 1));
       stopLater.push(s);
     });
+    const s = stopLater.at(-1)!;
+    // the first pass runs immediately, not at the next full minute
+    await until(() => s.runningJobIds.length === 1);
+    assert.deepEqual(s.runningJobIds.length, 1);
     assert.equal((await done).record?.status, "ok");
     await stopLater.pop()!.stop();
     assert.equal([...cron.getTasks().values()].filter((t) => t.name === `pi-cron-${process.pid}`).length, 0);
