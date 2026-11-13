@@ -17,10 +17,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Smotherer007/pi-cron.git"
+    "url": "https://github.com/patimweb-agents/pi-cron.git"
   },
   "bugs": {
-    "url": "https://github.com/Smotherer007/pi-cron/issues"
+    "url": "https://github.com/patimweb-agents/pi-cron/issues"
   },
   "scripts": {
     "build": "echo 'No build step defined'",
